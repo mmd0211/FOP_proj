@@ -40,7 +40,8 @@ typedef struct time
     char second[1000];
 } date;
 
-int run_branch(argc, argv);
+int run_branch(int argc, char *const argv[]);
+
 int run_init(int argc, char *const argv[]);
 int create_configs(char *username, char *email);
 int config_global(char *username, char *email, int flag);
