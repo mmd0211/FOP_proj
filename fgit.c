@@ -1001,6 +1001,111 @@ int run_commit(int argc, char *const argv[])
     fclose(fptr);
 }
 
+int compareFiles(const char *file1, const char *file2)
+{
+    FILE *fptr1, *fptr2;
+    char line1[256], line2[256];
+
+    fptr1 = fopen(file1, "r");
+    fptr2 = fopen(file2, "r");
+
+    if (fptr1 == NULL || fptr2 == NULL)
+    {
+        printf("Error opening files.\n");
+        return -1;
+    }
+
+    int difference = 0;
+
+    while (fgets(line1, sizeof(line1), fptr1) && fgets(line2, sizeof(line2), fptr2))
+    {
+        if (strcmp(line1, line2) != 0)
+        {
+            difference = 1;
+            break;
+        }
+    }
+
+    fclose(fptr1);
+    fclose(fptr2);
+
+    return difference;
+}
+
+int isdirequal(char *dir1, char *dir2)
+{
+    struct dirent *entry1;
+    struct dirent *entry2;
+    DIR *dir = opendir(dir1);
+    DIR *dir = opendir(dir2);
+    if (dir == NULL)
+    {
+        perror("Error : opening current directory");
+        return 1;
+    }
+    while ((entry1 = readdir(dir)) != NULL || (entry2 = readdir(dir)) != NULL)
+    {
+        if (entry1 == NULL || entry2 == NULL)
+            return -1;
+        char add1[1000] = {0};
+        strcat(add1, dir1);
+        strcat(add1, "\\");
+        strcat(add1, entry1->d_name);
+        FILE *f1 = fopen(add1, "r");
+
+        char add2[1000] = {0};
+        strcat(add2, dir2);
+        strcat(add2, "\\");
+        strcat(add2, entry2->d_name);
+        FILE *f2 = fopen(add2, "r");
+
+        int a = comparefiles(f1, f2);
+        if (a != 0)
+        {
+            return -2;
+        }
+    }
+    closedir(dir);
+    return 0;
+}
+
+int run_checkout_branch(int argc, char *const argv[])
+{
+    char last_commitadd[1000] = {0};
+    char rootadd[1000] = {0};
+    rootfinder(rootadd);
+    strcat(last_commitadd, rootadd);
+    strcat(last_commitadd, "\\");
+    strcat(last_commitadd, current_branch);
+    strcat(last_commitadd, "\\commits\\");
+    int last_commit_ID = 0;
+    char last_commit_ID_char[1000] = {0};
+    last_commit_ID = inc_last_commit_ID();
+    int_to_char(last_commit_ID, last_commit_ID_char);
+    strcat(last_commitadd, last_commit_ID_char);
+    DIR *dir1 = opendir(last_commitadd);
+    DIR *dir2 = opendir(".");
+    char c[22] = {0};
+    strcat(c, ".");
+    int a = isdirequal(last_commitadd, c);
+    if (a != 0)
+    {
+        printf("You have some modified file should be commited first!\n");
+        return -1;
+    }
+    struct dirent *entry;
+    FILE *file;
+    DIR *dir;
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strcmp(entry->d_name, ".fgit") == 0 || strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0){
+            continue;
+        }
+        else
+            remove(dir);
+    }
+}
+
 void get_time(char *time_string)
 {
     time_t now;
@@ -1466,6 +1571,7 @@ int run_branch(int argc, char *const argv[])
     strcat(command2, command + 6);
     printf("comman2: %s\n", command2);
     system(command2);
+    strcat(current_branch, branch_name);
 }
 
 int show_branch()
@@ -1634,10 +1740,10 @@ int main(int argc, char *argv[])
         }
         return run_log(argc, argv);
     }
-    // else if (strcmp(argv[1], "checkout") == 0)
-    // {
-    //     return run_checkout(argc, argv);
-    // }
+    else if (strcmp(argv[1], "checkout") == 0)
+    {
+        return run_checkout(argc, argv);
+    }
     else if (strcmp(argv[1], "branch") == 0)
     {
         if (argv[2] != NULL)
