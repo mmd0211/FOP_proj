@@ -41,7 +41,6 @@ typedef struct time
 } date;
 
 int run_branch(int argc, char *const argv[]);
-
 int run_init(int argc, char *const argv[]);
 int create_configs(char *username, char *email);
 int config_global(char *username, char *email, int flag);
@@ -68,6 +67,7 @@ int run_log_since(int argc, char *const argv[]);
 int run_log_branch(int argc, char *const argv[]);
 int run_log(int argc, char *const argv[]);
 
+int grep(int argc, char *const argv[]);
 void get_time(char *time_string);
 int run_checkout(int argc, char *const argv[]);
 int find_file_last_change_before_commit(char *filepath, int commit_ID);
@@ -121,6 +121,7 @@ int config_global(char *username, char *email, int flag) // flag=0 : change user
         fputs(newemail, fptr);
     }
     fclose(fptr);
+    return 0;
 }
 
 int config_local(char *username, char *email, int flag) // flag=0 : change username // flag=1 change email
@@ -408,7 +409,7 @@ int add_to_staging(char *filepath)
         if (datatype == 'f')
         {
             char command[10000] = {0};
-            strcat(command, "copy ");
+            strcat(command, "xcopy /E /H /I /C ");
             strcat(command, filepath);
             strcat(command, " .fgit\\");
             strcat(command, current_branch);
@@ -424,7 +425,7 @@ int add_to_staging(char *filepath)
         {
             char *command2 = (char *)calloc(10000, sizeof(char));
             // goal : command = "xcopy .\filepath .\.fgit\branch\staging"
-            strcat(command2, "Xcopy .\\");
+            strcat(command2, "xcopy /E /H /I /C .\\");
             strcat(command2, filepath);
             strcat(command2, " .fgit\\");
             strcat(command2, current_branch);
@@ -537,39 +538,58 @@ int create_configs(char *username, char *email)
     return 0;
 }
 
-int create_configs_newbranch(char *username, char *email , char * branch_name)
+int create_configs_newbranch(char *username, char *email, char *branch_name)
 {
     char rootadd[1000];
     rootfinder(rootadd);
-    char commnad[1000] ={0};
-    
-    if (mkdir(".fgit\\master") != 0)
-        return 1;
+    char commnad[1000] = {0};
+    strcat(commnad, rootadd);
+    strcat(commnad, "\\");
+    strcat(commnad, branch_name);
+    strcat(commnad, "\\config.txt");
 
-    FILE *file = fopen(".fgit\\master\\config.txt", "w");
+    FILE *file = fopen(commnad, "w");
     if (file == NULL)
         return 1;
 
     fprintf(file, "username: %s\n", username);
     fprintf(file, "email: %s\n", email);
-    fprintf(file, "last_commit_ID: %d\n", 0);
-    fprintf(file, "current_commit_ID: %d\n", 0);
+    fprintf(file, "last_commit_ID: %d\n", 1);
+    fprintf(file, "current_commit_ID: %d\n", 1);
     // fprintf(file, "current_branch: %s", "master");
 
     fclose(file);
 
     // create commits folder
-    if (mkdir(".fgit\\master\\commits") != 0)
+    char commnad2[1000] = {0};
+    strcat(commnad2, rootadd);
+    strcat(commnad2, "\\");
+    strcat(commnad2, branch_name);
+    strcat(commnad2, "\\commits");
+    if (mkdir(commnad2) != 0)
         return 1;
 
     // create files folder
-    if (mkdir(".fgit\\master\\files") != 0)
+    char commnad3[1000] = {0};
+    strcat(commnad3, rootadd);
+    strcat(commnad3, "\\");
+    strcat(commnad3, branch_name);
+    strcat(commnad3, "\\files");
+    if (mkdir(commnad3) != 0)
         return 1;
-
-    if (mkdir(".fgit\\master\\staging") != 0)
+    char commnad4[1000] = {0};
+    strcat(commnad4, rootadd);
+    strcat(commnad4, "\\");
+    strcat(commnad4, branch_name);
+    strcat(commnad4, "\\staging");
+    if (mkdir(commnad4) != 0)
         return 1;
-
-    if (mkdir(".fgit\\master\\tracks") != 0)
+    char commnad5[1000] = {0};
+    strcat(commnad5, rootadd);
+    strcat(commnad5, "\\");
+    strcat(commnad5, branch_name);
+    strcat(commnad5, "\\tracks");
+    if (mkdir(commnad5) != 0)
         return 1;
 
     return 0;
@@ -1360,11 +1380,33 @@ int run_log_branch(int argc, char *const argv[])
     }
 }
 
+int infofinder(char *username, char *email, char *path)
+{
+    strcat(path, "\\config.txt");
+    char line[1000] = {0};
+    FILE *file = fopen(path, "r");
+    while (fgets(line, 1000, file) != NULL)
+    {
+        int n = strlen(line);
+        if (line[n - 1] == '\n')
+            line[n - 1] = 0;
+        if (strncmp(line, "username:", 9) == 0)
+        {
+            strcpy(username, line);
+        }
+        if (strncmp(line, "email", 5) == 0)
+        {
+            strcpy(email, line);
+        }
+    }
+    return 0;
+}
+
 int run_branch(int argc, char *const argv[])
 {
     // checking branch is exist?
     char branch_name[1000] = {0};
-    strcpy(argv[2], branch_name);
+    strcat(branch_name, argv[2]);
     char rootadd[1000];
     rootfinder(rootadd);
 
@@ -1372,9 +1414,9 @@ int run_branch(int argc, char *const argv[])
     DIR *dir = opendir(rootadd);
     struct dirent *entry;
     rewinddir(dir);
-    while (readdir(dir) != NULL)
+    while ((entry = readdir(dir)) != NULL)
     {
-        if (entry->d_name == branch_name && entry->d_type == DT_DIR)
+        if (strcmp(entry->d_name, branch_name) == 0)
             exist = true;
     }
     if (exist)
@@ -1387,8 +1429,17 @@ int run_branch(int argc, char *const argv[])
     strcat(command, rootadd);
     strcat(command, "\\");
     strcat(command, branch_name);
+    printf("b:%s\n", branch_name);
+    printf("cmdd:%s\n", command);
     system(command);
-
+    char path[1000] = {0};
+    strcat(path, rootadd);
+    strcat(path, "\\");
+    strcat(path, current_branch);
+    char email[1000] = {0};
+    char username[1000] = {0};
+    infofinder(username, email, path);
+    create_configs_newbranch(username, email, branch_name);
     char commitadd[1000] = {0};
     strcat(commitadd, rootadd);
     strcat(commitadd, "\\");
@@ -1405,11 +1456,116 @@ int run_branch(int argc, char *const argv[])
     int_to_char(Number_File_commited, Number_File_commited_char);
     strcat(commitadd, "\\");
     strcat(commitadd, Number_File_commited_char);
+    char command2[1000] = {0};
+    strcat(command2, "xcopy /E /H /I /C ");
+    strcat(command2, commitadd);
+    strcat(command2, " ");
+    strcat(command, "\\commits\\1");
+    printf("cmd2:%s\n", command + 6);
+    system(command);
+    strcat(command2, command + 6);
+    printf("comman2: %s\n", command2);
+    system(command2);
+}
 
+int show_branch()
+{
+    char rootadd[1000] = {0};
+    rootfinder(rootadd);
+    struct dirent *entry;
+    DIR *dir = opendir(rootadd);
+    rewinddir(dir);
+    printf("branches:\n");
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (entry->d_name[0] == '.')
+            continue;
+        printf("%s\n", entry->d_name);
+    }
+    printf("current_branch: %s\n", current_branch);
+}
+
+int grep(int argc, char *const argv[])
+{
+    char word[1000] = {0};
+    strcat(word, argv[5]);
+    char filename[1000] = {0};
+    strcat(filename, argv[3]);
+    int print_line_number = 0;
+    if (strcmp("-n", argv[argc - 1]) == 0)
+        print_line_number = 1;
+    if (argc > 6)
+    {
+        if (strcmp(argv[6], "-c") == 0)
+        {
+            char rootadd[1000] = {0};
+            rootfinder(rootadd);
+            char commit_ID_char[1000] = {0};
+            strcat(commit_ID_char, argv[7]);
+            char command[1000] = {0};
+            // strcat(command, "cd ");
+            strcat(command, rootadd);
+            strcat(command, "\\");
+            strcat(command, current_branch);
+            strcat(command, "\\commits\\");
+            strcat(command, commit_ID_char);
+            // system(command);
+            chdir(command);
+            printf("cmd: %s\n", command);
+            char q[100];
+            getcwd(q, 1000);
+            printf("cwd:%s\n", q);
+            // commitfinder(commitpath, commit_ID_char);
+        }
+    }
+    bool exist = false;
+    DIR *dir = opendir(".");
+    struct dirent *entry;
+    rewinddir(dir);
+    while ((entry = readdir(dir)) != NULL)
+    {
+        if (strcmp(entry->d_name, filename) == 0)
+            exist = true;
+    }
+    if (!exist)
+    {
+        printf("The file %s doesn't exist!!\n", filename);
+        return -1;
+    }
+    printf("rfttt\n");
+    FILE *file = fopen(filename, "r");
+    char line[1000] = {0};
+    int ith_line = 0;
+    int flag = 0;
+    while (fgets(line, 1000, file) != NULL)
+    {
+        ith_line++;
+        int n = strlen(line);
+        if (line[n - 1] == '\n')
+            line[n - 1] = 0;
+        char *point;
+        point = strstr(line, word);
+        if (point == NULL)
+            continue;
+        else
+        {
+            flag = 1;
+            printf("YOUR WORD FOUNDED!\n");
+            if (print_line_number)
+                printf("line number %dth:%s\n", ith_line, line);
+            if (!print_line_number)
+                printf("%s\n", line);
+        }
+    }
+    printf("The word doesn't exist!\n");
 }
 
 int main(int argc, char *argv[])
 {
+    // char q[10];
+    // chdir("c:\\");
+    // printf("in:%s\n", getcwd(q, 1000));
+    // mkdir("salam");
     print_command(argc, argv);
     printf("runnnn\n");
     if (strcmp(argv[1], "config") == 0)
@@ -1490,6 +1646,10 @@ int main(int argc, char *argv[])
         }
         else
             return show_branch(argc, argv);
+    }
+    else if (strcmp(argv[1], "grep") == 0)
+    {
+        return grep(argc, argv);
     }
     printf("Invalid command with fgit");
     return 0;
